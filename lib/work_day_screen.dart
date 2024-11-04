@@ -108,71 +108,31 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
     );
   }
 
-  void _confirmDelete(int index) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.warning, color: Colors.red),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Подтверждение удаления',
-                  style: TextStyle(fontSize: 18),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+  Widget _buildColoredBlock(String label, double value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(10.0),
+      margin: const EdgeInsets.symmetric(vertical: 5.0),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10.0),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
           ),
-          content: const Text('Вы уверены, что хотите удалить эту запись?'),
-          actions: [
-            TextButton(
-              child: const Text('Отмена'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Удалить'),
-              onPressed: () {
-                _deleteEntry(index);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _deleteEntry(int index) {
-    setState(() {
-      _workDayBox.deleteAt(index);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Запись успешно удалена'),
-        backgroundColor: Colors.green,
+          Text(
+            value.toString(),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
-  }
-
-  void _selectDate(BuildContext context) async {
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (pickedDate != null) {
-      setState(() {
-        _selectedDate = DateFormat('dd.MM.yyyy').format(pickedDate);
-      });
-    }
   }
 
   @override
@@ -255,8 +215,17 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                   final originalIndex = _workDayBox.values.toList().indexOf(entry);
                   return Dismissible(
                     key: Key(entry['date']),
-                    direction: DismissDirection.endToStart,
+                    direction: DismissDirection.horizontal,
                     background: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      color: Colors.blue,
+                      child: const Icon(
+                        Icons.edit,
+                        color: Colors.white,
+                      ),
+                    ),
+                    secondaryBackground: Container(
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       color: Colors.red,
@@ -266,45 +235,53 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                       ),
                     ),
                     confirmDismiss: (direction) async {
-                      return await showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: Row(
-                              children: [
-                                const Icon(Icons.warning, color: Colors.red),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'Подтверждение удаления',
-                                    style: TextStyle(fontSize: 18),
-                                    overflow: TextOverflow.ellipsis,
+                      if (direction == DismissDirection.startToEnd) {
+                        _showEditEntryDialog(context, originalIndex);
+                        return false;
+                      } else if (direction == DismissDirection.endToStart) {
+                        return await showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Row(
+                                children: [
+                                  const Icon(Icons.warning, color: Colors.red),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Подтверждение удаления',
+                                      style: TextStyle(fontSize: 18),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
+                                ],
+                              ),
+                              content: const Text('Вы уверены, что хотите удалить эту запись?'),
+                              actions: [
+                                TextButton(
+                                  child: const Text('Отмена'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop(false);
+                                  },
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                  child: const Text('Удалить'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop(true);
+                                  },
                                 ),
                               ],
-                            ),
-                            content: const Text('Вы уверены, что хотите удалить эту запись?'),
-                            actions: [
-                              TextButton(
-                                child: const Text('Отмена'),
-                                onPressed: () {
-                                  Navigator.of(context).pop(false);
-                                },
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                child: const Text('Удалить'),
-                                onPressed: () {
-                                  Navigator.of(context).pop(true);
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      );
+                            );
+                          },
+                        );
+                      }
+                      return false;
                     },
                     onDismissed: (direction) {
-                      _deleteEntry(originalIndex);
+                      if (direction == DismissDirection.endToStart) {
+                        _deleteEntry(originalIndex);
+                      }
                     },
                     child: Card(
                       margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
@@ -312,39 +289,21 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(15.0),
                       ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(10.0),
-                        leading: const Icon(Icons.date_range, color: Colors.white),
-                        title: Text(
-                          'Дата: ${DateFormat('dd.MM.yyyy').format(DateTime.parse(entry['date']))}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
+                      child: Padding(
+                        padding: const EdgeInsets.all(10.0),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Остаток: ${entry['ostatok']}',
-                              style: const TextStyle(color: Colors.white),
+                              'Дата: ${DateFormat('dd.MM.yyyy').format(DateTime.parse(entry['date']))}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                             ),
-                            Text(
-                              'Тушди: ${entry['tushdi']}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            Text(
-                              'Кетди: ${entry['ketdi']}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            Text(
-                              'Остаток: ${entry['secondOstatok']}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
+                            const SizedBox(height: 10),
+                            _buildColoredBlock('Остаток', entry['ostatok'], Colors.blue, Icons.account_balance_wallet),
+                            _buildColoredBlock('Тушди', entry['tushdi'], Colors.grey, Icons.arrow_downward),
+                            _buildColoredBlock('Кетди', entry['ketdi'], Colors.red, Icons.arrow_upward),
+                            _buildColoredBlock('Остаток', entry['secondOstatok'], Colors.green, Icons.account_balance),
                           ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          onPressed: () {
-                            _showEditEntryDialog(context, originalIndex);
-                          },
                         ),
                       ),
                     ),
@@ -356,5 +315,32 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
         ),
       ),
     );
+  }
+
+  void _deleteEntry(int index) {
+    setState(() {
+      _workDayBox.deleteAt(index);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Запись успешно удалена'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _selectDate(BuildContext context) async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDate = DateFormat('dd.MM.yyyy').format(pickedDate);
+      });
+    }
   }
 }
