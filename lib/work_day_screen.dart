@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 
 class WorkDayScreen extends StatefulWidget {
   const WorkDayScreen({super.key});
@@ -34,6 +35,15 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
     final TextEditingController secondOstatokController = TextEditingController(
         text: isEditing ? entry['secondOstatok'].toString() : '');
 
+    void _updateSecondOstatok() {
+      final tushdi = double.tryParse(tushdiController.text) ?? 0;
+      final ketdi = double.tryParse(ketdiController.text) ?? 0;
+      secondOstatokController.text = (tushdi - ketdi).toString();
+    }
+
+    tushdiController.addListener(_updateSecondOstatok);
+    ketdiController.addListener(_updateSecondOstatok);
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -46,7 +56,7 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                 _buildTextField(ostatokController, 'Остаток', Icons.account_balance_wallet),
                 _buildTextField(tushdiController, 'Тушди', Icons.arrow_downward),
                 _buildTextField(ketdiController, 'Кетди', Icons.arrow_upward),
-                _buildTextField(secondOstatokController, 'Остаток', Icons.account_balance),
+                _buildTextField(secondOstatokController, 'Остаток', Icons.account_balance, readOnly: true),
               ],
             ),
           ),
@@ -60,27 +70,19 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
             ElevatedButton(
               child: Text(isEditing ? 'Сохранить' : 'Добавить'),
               onPressed: () {
-                setState(() {
-                  final newEntry = {
-                    'date': isEditing
-                        ? entry['date']
-                        : '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}',
-                    'ostatok': double.tryParse(ostatokController.text) ?? 0,
-                    'tushdi': double.tryParse(tushdiController.text) ?? 0,
-                    'ketdi': double.tryParse(ketdiController.text) ?? 0,
-                    'secondOstatok': double.tryParse(secondOstatokController.text) ?? 0,
-                  };
-                  if (isEditing) {
-                    _workDayBox.putAt(index!, newEntry);
-                  } else {
-                    _workDayBox.add(newEntry);
-                    // Перемещаем новую запись в начало списка
-                    final newIndex = _workDayBox.length - 1;
-                    final newEntry = _workDayBox.getAt(newIndex);
-                    _workDayBox.deleteAt(newIndex);
-                    _workDayBox.add(newEntry);
-                  }
-                });
+                final newEntry = {
+                  'date': entry != null && isEditing ? entry['date'] : DateTime.now().toIso8601String(),
+                  'ostatok': double.tryParse(ostatokController.text) ?? 0,
+                  'tushdi': double.tryParse(tushdiController.text) ?? 0,
+                  'ketdi': double.tryParse(ketdiController.text) ?? 0,
+                  'secondOstatok': double.tryParse(secondOstatokController.text) ?? 0,
+                };
+                if (isEditing) {
+                  _workDayBox.putAt(index!, newEntry);
+                } else {
+                  _workDayBox.add(newEntry);
+                }
+                setState(() {});
                 Navigator.of(context).pop();
               },
             ),
@@ -90,11 +92,12 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String labelText, IconData icon) {
+  Widget _buildTextField(TextEditingController controller, String labelText, IconData icon, {bool readOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextField(
         controller: controller,
+        readOnly: readOnly,
         decoration: InputDecoration(
           labelText: labelText,
           prefixIcon: Icon(icon),
@@ -167,8 +170,7 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
     );
     if (pickedDate != null) {
       setState(() {
-        _selectedDate =
-        '${pickedDate.day.toString().padLeft(2, '0')}.${pickedDate.month.toString().padLeft(2, '0')}.${pickedDate.year}';
+        _selectedDate = DateFormat('dd.MM.yyyy').format(pickedDate);
       });
     }
   }
@@ -233,7 +235,9 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
             } else {
               List filteredEntries = _selectedDate == null
                   ? box.values.toList()
-                  : box.values.where((entry) => entry['date'] == _selectedDate).toList();
+                  : box.values.where((entry) => DateFormat('dd.MM.yyyy').format(DateTime.parse(entry['date'])) == _selectedDate).toList();
+
+              filteredEntries.sort((a, b) => b['date'].compareTo(a['date']));
 
               if (filteredEntries.isEmpty) {
                 return const Center(
@@ -248,56 +252,100 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                 itemCount: filteredEntries.length,
                 itemBuilder: (context, index) {
                   final entry = filteredEntries[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
-                    color: Colors.white24,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15.0),
+                  final originalIndex = _workDayBox.values.toList().indexOf(entry);
+                  return Dismissible(
+                    key: Key(entry['date']),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      color: Colors.red,
+                      child: const Icon(
+                        Icons.delete,
+                        color: Colors.white,
+                      ),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(10.0),
-                      leading: const Icon(Icons.date_range, color: Colors.white),
-                      title: Text(
-                        'Дата: ${entry['date']}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    confirmDismiss: (direction) async {
+                      return await showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.warning, color: Colors.red),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Подтверждение удаления',
+                                    style: TextStyle(fontSize: 18),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            content: const Text('Вы уверены, что хотите удалить эту запись?'),
+                            actions: [
+                              TextButton(
+                                child: const Text('Отмена'),
+                                onPressed: () {
+                                  Navigator.of(context).pop(false);
+                                },
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                child: const Text('Удалить'),
+                                onPressed: () {
+                                  Navigator.of(context).pop(true);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                    onDismissed: (direction) {
+                      _deleteEntry(originalIndex);
+                    },
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                      color: Colors.white24,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15.0),
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Остаток: ${entry['ostatok']}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            'Тушди: ${entry['tushdi']}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            'Кетди: ${entry['ketdi']}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            'Остаток: ${entry['secondOstatok']}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white),
-                            onPressed: () {
-                              _showEditEntryDialog(context, index);
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.white),
-                            onPressed: () {
-                              _confirmDelete(index);
-                            },
-                          ),
-                        ],
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(10.0),
+                        leading: const Icon(Icons.date_range, color: Colors.white),
+                        title: Text(
+                          'Дата: ${DateFormat('dd.MM.yyyy').format(DateTime.parse(entry['date']))}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Остаток: ${entry['ostatok']}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            Text(
+                              'Тушди: ${entry['tushdi']}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            Text(
+                              'Кетди: ${entry['ketdi']}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            Text(
+                              'Остаток: ${entry['secondOstatok']}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          onPressed: () {
+                            _showEditEntryDialog(context, originalIndex);
+                          },
+                        ),
                       ),
                     ),
                   );
