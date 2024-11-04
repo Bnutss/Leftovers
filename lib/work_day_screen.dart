@@ -32,17 +32,19 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
         text: isEditing ? entry['tushdi'].toString() : '');
     final TextEditingController ketdiController = TextEditingController(
         text: isEditing ? entry['ketdi'].toString() : '');
-    final TextEditingController secondOstatokController = TextEditingController(
-        text: isEditing ? entry['secondOstatok'].toString() : '');
+    final TextEditingController resultOstatokController = TextEditingController(
+        text: isEditing ? entry['ostatok'].toString() : '');
 
-    void _updateSecondOstatok() {
+    void _updateResultOstatok() {
+      final ostatok = double.tryParse(ostatokController.text) ?? 0;
       final tushdi = double.tryParse(tushdiController.text) ?? 0;
       final ketdi = double.tryParse(ketdiController.text) ?? 0;
-      secondOstatokController.text = (tushdi - ketdi).toString();
+      resultOstatokController.text = (ostatok + tushdi - ketdi).toString();
     }
 
-    tushdiController.addListener(_updateSecondOstatok);
-    ketdiController.addListener(_updateSecondOstatok);
+    tushdiController.addListener(_updateResultOstatok);
+    ketdiController.addListener(_updateResultOstatok);
+    ostatokController.addListener(_updateResultOstatok);
 
     showDialog(
       context: context,
@@ -56,7 +58,7 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                 _buildTextField(ostatokController, 'Остаток', Icons.account_balance_wallet),
                 _buildTextField(tushdiController, 'Тушди', Icons.arrow_downward),
                 _buildTextField(ketdiController, 'Кетди', Icons.arrow_upward),
-                _buildTextField(secondOstatokController, 'Остаток', Icons.account_balance, readOnly: true),
+                _buildTextField(resultOstatokController, 'Остаток (итог)', Icons.account_balance, readOnly: true),
               ],
             ),
           ),
@@ -75,7 +77,6 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                   'ostatok': double.tryParse(ostatokController.text) ?? 0,
                   'tushdi': double.tryParse(tushdiController.text) ?? 0,
                   'ketdi': double.tryParse(ketdiController.text) ?? 0,
-                  'secondOstatok': double.tryParse(secondOstatokController.text) ?? 0,
                 };
                 if (isEditing) {
                   _workDayBox.putAt(index!, newEntry);
@@ -302,7 +303,7 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
                             _buildColoredBlock('Остаток', entry['ostatok'], Colors.blue, Icons.account_balance_wallet),
                             _buildColoredBlock('Тушди', entry['tushdi'], Colors.grey, Icons.arrow_downward),
                             _buildColoredBlock('Кетди', entry['ketdi'], Colors.red, Icons.arrow_upward),
-                            _buildColoredBlock('Остаток', entry['secondOstatok'], Colors.green, Icons.account_balance),
+                            _buildColoredBlock('Остаток (итог)', (entry['ostatok'] + entry['tushdi'] - entry['ketdi']), Colors.green, Icons.account_balance),
                           ],
                         ),
                       ),
